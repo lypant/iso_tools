@@ -1,0 +1,174 @@
+#!/bin/bash
+
+set -o nounset errexit
+
+REQUIRED_PACKAGES="squashfs-tools cdrkit"
+
+ORIGINAL_ISO_PATH="~/shared"
+ORIGINAL_ISO_NAME="archlinux-2014.08.01-dual.iso"
+ORIGINAL_ISO_VERSION="ARCH_201408"
+ORIGINAL_ISO_MOUNT_POINT="/mnt/iso"
+ORIGINAL_ISO_FILE="$ORIGINAL_ISO_PATH/$ORIGINAL_ISO_NAME"
+
+WORKSPACE_PATH="~/forge"
+WORKSPACE_NAME="arch_iso"
+WORKSPACE_DIR="$WORKSPACE_PATH/$WORKSPACE_NAME"
+
+NEW_ISO_NAME="custom-$ORIGINAL_ISO_NAME"
+NEW_ISO_FILE="$WORKSPACE_DIR/$NEW_ISO_NAME"
+
+ISO_CONTENTS_PATH="$WORKSPACE_DIR"
+ISO_CONTENTS_NAME="iso_contents"
+ISO_CONTENTS_DIR="$ISO_CONTENTS_PATH/$ISO_CONTENTS_NAME"
+
+X86_64_FS_PATH="$WORKSPACE_DIR"
+X86_64_FS_NAME="x86_64_fs"
+X86_64_FS_DIR="$X86_64_FS_PATH/$X86_64_FS_NAME"
+
+SFS_ORIGINAL_NAME="airootfs.sfs"
+SFS_CHECKSUM_NAME="airootfs.md5"
+IMG_ORIGINAL_NAME="airootfs.img"
+UNSQUASHED_DIR_NAME="squashfs-root"
+
+X86_64_FS_ORIGINAL_PATH="$ISO_CONTENTS_DIR/arch/x86_64"
+X86_64_FS_ORIGINAL_FILE="$X86_64_FS_ORIGINAL_PATH/$SFS_ORIGINAL_NAME"
+X86_64_FS_ORIGINAL_CHECKSUM_FILE="$X86_64_FS_ORIGINAL_PATH/$SFS_CHECKSUM_NAME"
+
+FS_MOUNT_POINT="/mnt/rootfs"
+
+# To be copied to /root of booted iso
+SCRIPTS_SRC_PATH="~/scripts"
+SCRIPTS_DST_NAME="/root"
+
+checkPackages()
+{
+    for pkg in $REQUIRED_PACKAGES
+    do
+        pacman -Qsq $pkg &>/dev/null
+        if [[ "$?" -ne 0 ]]; then
+            sudo pacman -S --noconfirm $pkg
+        fi
+    done
+}
+
+createOriginalIsoMountPoint()
+{
+    eval "sudo mkdir -p $ORIGINAL_ISO_MOUNT_POINT"
+}
+
+mountOriginalIso()
+{
+    eval "sudo mount -t iso9660 -o loop"\
+         "$ORIGINAL_ISO_FILE $ORIGINAL_ISO_MOUNT_POINT"
+}
+
+unmountOriginalIso()
+{
+    eval "sudo umount $ORIGINAL_ISO_MOUNT_POINT"
+}
+
+createWorkspaceDir()
+{
+    eval "mkdir -p $WORKSPACE_DIR"
+}
+
+copyOriginalIsoContents()
+{
+    eval "cp -a $ORIGINAL_ISO_MOUNT_POINT $ISO_CONTENTS_DIR"
+}
+
+unsquashOriginalFs()
+{
+    local newFsPath="$1"
+    local originalSfs="$2"
+
+    eval "mkdir -p $newFsPath"
+    eval "cd $newFsPath"
+    eval "unsquashfs $originalSfs"
+}
+
+createFsImageMountPoint()
+{
+    eval "sudo mkdir -p $FS_MOUNT_POINT"
+}
+
+mountFsImage()
+{
+    local newFsPath="$1"
+    eval "sudo mount"\
+         "$newFsPath/$UNSQUASHED_DIR_NAME/$IMG_ORIGINAL_NAME $FS_MOUNT_POINT"
+}
+
+unmountFsImage()
+{
+    eval "sudo umount $FS_MOUNT_POINT"
+}
+
+copyScripts()
+{
+    eval "sudo cp $SCRIPTS_SRC_PATH/* $FS_MOUNT_POINT$SCRIPTS_DST_NAME"
+}
+
+squashNewFs()
+{
+    local newFsPath="$1"
+
+    eval "mksquashfs"\
+         "$newFsPath/$UNSQUASHED_DIR_NAME $newFsPath/$SFS_ORIGINAL_NAME"
+}
+
+generateNewFsChecksum()
+{
+    local newFsPath="$1"
+
+    eval "md5sum $newFsPath/$SFS_ORIGINAL_NAME > $newFsPath/$SFS_CHECKSUM_NAME"
+}
+
+removeOriginalFsFiles()
+{
+    local originalFsPath="$1"
+
+    eval "rm $originalFsPath/$SFS_ORIGINAL_NAME"
+    eval "rm $originalFsPath/$SFS_CHECKSUM_NAME"
+}
+
+copyNewFsFiles()
+{
+    local newFsPath="$1"
+    local originalFsPath="$2"
+
+    eval "cp $newFsPath/$SFS_ORIGINAL_NAME $originalFsPath/$SFS_ORIGINAL_NAME"
+    eval "cp $newFsPath/$SFS_CHECKSUM_NAME $originalFsPath/$SFS_CHECKSUM_NAME"
+}
+
+generateNewIso()
+{
+    eval "cd $ISO_CONTENTS_DIR"
+    eval "genisoimage -l -r -J -V \"$ORIGINAL_ISO_VERSION\""\
+         "-b isolinux/isolinux.bin -no-emul-boot -boot-load-size 4"\
+         "-boot-info-table -c isolinux/boot.cat"\
+         "-o $NEW_ISO_FILE $ISO_CONTENTS_DIR"
+}
+
+createCustomIso()
+{
+    checkPackages
+    createOriginalIsoMountPoint
+    mountOriginalIso
+    createWorkspaceDir
+    copyOriginalIsoContents
+    unmountOriginalIso
+    unsquashOriginalFs $X86_64_FS_DIR $X86_64_FS_ORIGINAL_FILE
+    createFsImageMountPoint
+    mountFsImage $X86_64_FS_DIR
+    copyScripts
+    unmountFsImage
+    squashNewFs $X86_64_FS_DIR
+    generateNewFsChecksum $X86_64_FS_DIR
+    removeOriginalFsFiles $X86_64_FS_ORIGINAL_PATH
+    copyNewFsFiles $X86_64_FS_DIR $X86_64_FS_ORIGINAL_PATH
+    generateNewIso
+}
+
+createCustomIso
+
