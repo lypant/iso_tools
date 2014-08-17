@@ -25,14 +25,20 @@ X86_64_FS_PATH="$WORKSPACE_DIR"
 X86_64_FS_NAME="x86_64_fs"
 X86_64_FS_DIR="$X86_64_FS_PATH/$X86_64_FS_NAME"
 
+I686_FS_PATH="$WORKSPACE_DIR"
+I686_FS_NAME="i686_fs"
+I686_FS_DIR="$I686_FS_PATH/$I686_FS_NAME"
+
 SFS_ORIGINAL_NAME="airootfs.sfs"
 SFS_CHECKSUM_NAME="airootfs.md5"
 IMG_ORIGINAL_NAME="airootfs.img"
 UNSQUASHED_DIR_NAME="squashfs-root"
 
 X86_64_FS_ORIGINAL_PATH="$ISO_CONTENTS_DIR/arch/x86_64"
-X86_64_FS_ORIGINAL_FILE="$X86_64_FS_ORIGINAL_PATH/$SFS_ORIGINAL_NAME"
 X86_64_FS_ORIGINAL_CHECKSUM_FILE="$X86_64_FS_ORIGINAL_PATH/$SFS_CHECKSUM_NAME"
+
+I686_FS_ORIGINAL_PATH="$ISO_CONTENTS_DIR/arch/i686"
+I686_FS_ORIGINAL_CHECKSUM_FILE="$I686_FS_ORIGINAL_PATH/$SFS_CHECKSUM_NAME"
 
 FS_MOUNT_POINT="/mnt/rootfs"
 
@@ -80,11 +86,11 @@ copyOriginalIsoContents()
 unsquashOriginalFs()
 {
     local newFsPath="$1"
-    local originalSfs="$2"
+    local originalFsPath="$2"
 
     eval "mkdir -p $newFsPath"
     eval "cd $newFsPath"
-    eval "unsquashfs $originalSfs"
+    eval "unsquashfs $originalFsPath/$SFS_ORIGINAL_NAME"
 }
 
 createFsImageMountPoint()
@@ -150,6 +156,32 @@ generateNewIso()
          "-o $NEW_ISO_FILE $ISO_CONTENTS_DIR"
 }
 
+prepareFileSystem()
+{
+    local newFsDir="$1"
+    local originalFsDir="$2"
+
+    unsquashOriginalFs $newFsDir $originalFsDir
+    createFsImageMountPoint
+    mountFsImage $newFsDir
+    copyScripts
+    unmountFsImage
+    squashNewFs $newFsDir
+    generateNewFsChecksum $newFsDir
+    removeOriginalFsFiles $originalFsDir
+    copyNewFsFiles $newFsDir $originalFsDir
+}
+
+prepareFileSystemX86_64()
+{
+    prepareFileSystem $X86_64_FS_DIR $X86_64_FS_ORIGINAL_PATH
+}
+
+prepareFileSystemI686()
+{
+    prepareFileSystem $I686_FS_DIR $I686_FS_ORIGINAL_PATH
+}
+
 createCustomIso()
 {
     checkPackages
@@ -158,15 +190,8 @@ createCustomIso()
     createWorkspaceDir
     copyOriginalIsoContents
     unmountOriginalIso
-    unsquashOriginalFs $X86_64_FS_DIR $X86_64_FS_ORIGINAL_FILE
-    createFsImageMountPoint
-    mountFsImage $X86_64_FS_DIR
-    copyScripts
-    unmountFsImage
-    squashNewFs $X86_64_FS_DIR
-    generateNewFsChecksum $X86_64_FS_DIR
-    removeOriginalFsFiles $X86_64_FS_ORIGINAL_PATH
-    copyNewFsFiles $X86_64_FS_DIR $X86_64_FS_ORIGINAL_PATH
+    prepareFileSystemX86_64
+    prepareFileSystemI686
     generateNewIso
 }
 
