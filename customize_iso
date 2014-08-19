@@ -1,54 +1,60 @@
 #!/bin/bash
+#===============================================================================
+# FILE:         customize_iso
+#
+# USAGE:        ./customize_iso
+#
+# DESCRIPTION:  TODO
+#===============================================================================
 
-set -o nounset errexit
+# Setup shell - detect unset variables
+set -o nounset
 
-REQUIRED_PACKAGES="squashfs-tools cdrkit"
+#-------------------------------------------------------------------------------
+# Settings adjustable using command line options
+#-------------------------------------------------------------------------------
 
-ORIGINAL_ISO_PATH="~/shared"
-ORIGINAL_ISO_NAME="archlinux-2014.08.01-dual.iso"
-ORIGINAL_ISO_VERSION="ARCH_201408"
-ORIGINAL_ISO_MOUNT_POINT="/mnt/iso"
-ORIGINAL_ISO_FILE="$ORIGINAL_ISO_PATH/$ORIGINAL_ISO_NAME"
+ORIGINAL_ISO="~/shared/archlinux-2014.08.01-dual.iso"
+NEW_ISO="~/shared/custom-archlinux-2014.08.01-dual.iso"
+WORKSPACE="~/forge/arch_iso"
+CUSTOM_SRC="~/scripts"
+CUSTOM_DST="/root"
 
-WORKSPACE_PATH="~/forge"
-WORKSPACE_NAME="arch_iso"
-WORKSPACE_DIR="$WORKSPACE_PATH/$WORKSPACE_NAME"
+#-------------------------------------------------------------------------------
+# Settings adjustable by editing this script
+#-------------------------------------------------------------------------------
 
-NEW_ISO_NAME="custom-$ORIGINAL_ISO_NAME"
-NEW_ISO_FILE="$WORKSPACE_DIR/$NEW_ISO_NAME"
+ISO_MNT_PNT="/mnt/iso"
+FS_MNT_PNT="/mnt/iso_rootfs"
 
-ISO_CONTENTS_PATH="$WORKSPACE_DIR"
-ISO_CONTENTS_NAME="iso_contents"
-ISO_CONTENTS_DIR="$ISO_CONTENTS_PATH/$ISO_CONTENTS_NAME"
+#-------------------------------------------------------------------------------
+# Not editable (unless changed in Arch Linux)
+#-------------------------------------------------------------------------------
 
-X86_64_FS_PATH="$WORKSPACE_DIR"
-X86_64_FS_NAME="x86_64_fs"
-X86_64_FS_DIR="$X86_64_FS_PATH/$X86_64_FS_NAME"
+PACKAGES="squashfs-tools cdrkit"
+SFS_NAME="airootfs.sfs"
+MD5_NAME="airootfs.md5"
+IMG_NAME="airootfs.img"
+USQ_NAME="squashfs-root"
 
-I686_FS_PATH="$WORKSPACE_DIR"
-I686_FS_NAME="i686_fs"
-I686_FS_DIR="$I686_FS_PATH/$I686_FS_NAME"
+ORIGINAL_NAME="${ORIGINAL_ISO##*/}"
+ISO_YEAR="${ORIGINAL_NAME:10:4}"
+ISO_MONTH="${ORIGINAL_NAME:15:2}"
+ISO_VERSION="ARCH_$ISO_YEAR$ISO_MONTH"
 
-SFS_ORIGINAL_NAME="airootfs.sfs"
-SFS_CHECKSUM_NAME="airootfs.md5"
-IMG_ORIGINAL_NAME="airootfs.img"
-UNSQUASHED_DIR_NAME="squashfs-root"
+ISO_CONTENTS_DIR="$WORKSPACE/iso_contents"
+X86_64_FS_DIR="$WORKSPACE/x86_64_fs"
+I686_FS_DIR="$WORKSPACE/i686_fs"
+X86_64_FS_SRC="$ISO_CONTENTS_DIR/arch/x86_64"
+I686_FS_SRC="$ISO_CONTENTS_DIR/arch/i686"
 
-X86_64_FS_ORIGINAL_PATH="$ISO_CONTENTS_DIR/arch/x86_64"
-X86_64_FS_ORIGINAL_CHECKSUM_FILE="$X86_64_FS_ORIGINAL_PATH/$SFS_CHECKSUM_NAME"
-
-I686_FS_ORIGINAL_PATH="$ISO_CONTENTS_DIR/arch/i686"
-I686_FS_ORIGINAL_CHECKSUM_FILE="$I686_FS_ORIGINAL_PATH/$SFS_CHECKSUM_NAME"
-
-FS_MOUNT_POINT="/mnt/rootfs"
-
-# To be copied to /root of booted iso
-SCRIPTS_SRC_PATH="~/scripts"
-SCRIPTS_DST_NAME="/root"
+#-------------------------------------------------------------------------------
+# Functions
+#-------------------------------------------------------------------------------
 
 checkPackages()
 {
-    for pkg in $REQUIRED_PACKAGES
+    for pkg in $PACKAGES
     do
         pacman -Qsq $pkg &>/dev/null
         if [[ "$?" -ne 0 ]]; then
@@ -59,28 +65,28 @@ checkPackages()
 
 createOriginalIsoMountPoint()
 {
-    eval "sudo mkdir -p $ORIGINAL_ISO_MOUNT_POINT"
+    eval "sudo mkdir -p $ISO_MNT_PNT"
 }
 
 mountOriginalIso()
 {
     eval "sudo mount -t iso9660 -o loop"\
-         "$ORIGINAL_ISO_FILE $ORIGINAL_ISO_MOUNT_POINT"
+         "$ORIGINAL_ISO $ISO_MNT_PNT"
 }
 
 unmountOriginalIso()
 {
-    eval "sudo umount $ORIGINAL_ISO_MOUNT_POINT"
+    eval "sudo umount $ISO_MNT_PNT"
 }
 
 createWorkspaceDir()
 {
-    eval "mkdir -p $WORKSPACE_DIR"
+    eval "mkdir -p $WORKSPACE"
 }
 
 copyOriginalIsoContents()
 {
-    eval "cp -a $ORIGINAL_ISO_MOUNT_POINT $ISO_CONTENTS_DIR"
+    eval "cp -a $ISO_MNT_PNT $ISO_CONTENTS_DIR"
 }
 
 unsquashOriginalFs()
@@ -90,29 +96,29 @@ unsquashOriginalFs()
 
     eval "mkdir -p $newFsPath"
     eval "cd $newFsPath"
-    eval "unsquashfs $originalFsPath/$SFS_ORIGINAL_NAME"
+    eval "unsquashfs $originalFsPath/$SFS_NAME"
 }
 
 createFsImageMountPoint()
 {
-    eval "sudo mkdir -p $FS_MOUNT_POINT"
+    eval "sudo mkdir -p $FS_MNT_PNT"
 }
 
 mountFsImage()
 {
     local newFsPath="$1"
     eval "sudo mount"\
-         "$newFsPath/$UNSQUASHED_DIR_NAME/$IMG_ORIGINAL_NAME $FS_MOUNT_POINT"
+         "$newFsPath/$USQ_NAME/$IMG_NAME $FS_MNT_PNT"
 }
 
 unmountFsImage()
 {
-    eval "sudo umount $FS_MOUNT_POINT"
+    eval "sudo umount $FS_MNT_PNT"
 }
 
 copyScripts()
 {
-    eval "sudo cp $SCRIPTS_SRC_PATH/* $FS_MOUNT_POINT$SCRIPTS_DST_NAME"
+    eval "sudo cp $CUSTOM_SRC/* $FS_MNT_PNT$CUSTOM_DST"
 }
 
 squashNewFs()
@@ -120,22 +126,22 @@ squashNewFs()
     local newFsPath="$1"
 
     eval "mksquashfs"\
-         "$newFsPath/$UNSQUASHED_DIR_NAME $newFsPath/$SFS_ORIGINAL_NAME"
+         "$newFsPath/$USQ_NAME $newFsPath/$SFS_NAME"
 }
 
 generateNewFsChecksum()
 {
     local newFsPath="$1"
 
-    eval "md5sum $newFsPath/$SFS_ORIGINAL_NAME > $newFsPath/$SFS_CHECKSUM_NAME"
+    eval "md5sum $newFsPath/$SFS_NAME > $newFsPath/$MD5_NAME"
 }
 
 removeOriginalFsFiles()
 {
     local originalFsPath="$1"
 
-    eval "rm $originalFsPath/$SFS_ORIGINAL_NAME"
-    eval "rm $originalFsPath/$SFS_CHECKSUM_NAME"
+    eval "rm $originalFsPath/$SFS_NAME"
+    eval "rm $originalFsPath/$MD5_NAME"
 }
 
 copyNewFsFiles()
@@ -143,17 +149,17 @@ copyNewFsFiles()
     local newFsPath="$1"
     local originalFsPath="$2"
 
-    eval "cp $newFsPath/$SFS_ORIGINAL_NAME $originalFsPath/$SFS_ORIGINAL_NAME"
-    eval "cp $newFsPath/$SFS_CHECKSUM_NAME $originalFsPath/$SFS_CHECKSUM_NAME"
+    eval "cp $newFsPath/$SFS_NAME $originalFsPath/$SFS_NAME"
+    eval "cp $newFsPath/$MD5_NAME $originalFsPath/$MD5_NAME"
 }
 
 generateNewIso()
 {
     eval "cd $ISO_CONTENTS_DIR"
-    eval "genisoimage -l -r -J -V \"$ORIGINAL_ISO_VERSION\""\
+    eval "genisoimage -l -r -J -V \"$ISO_VERSION\""\
          "-b isolinux/isolinux.bin -no-emul-boot -boot-load-size 4"\
          "-boot-info-table -c isolinux/boot.cat"\
-         "-o $NEW_ISO_FILE $ISO_CONTENTS_DIR"
+         "-o $NEW_ISO $ISO_CONTENTS_DIR"
 }
 
 prepareFileSystem()
@@ -174,12 +180,12 @@ prepareFileSystem()
 
 prepareFileSystemX86_64()
 {
-    prepareFileSystem $X86_64_FS_DIR $X86_64_FS_ORIGINAL_PATH
+    prepareFileSystem $X86_64_FS_DIR $X86_64_FS_SRC
 }
 
 prepareFileSystemI686()
 {
-    prepareFileSystem $I686_FS_DIR $I686_FS_ORIGINAL_PATH
+    prepareFileSystem $I686_FS_DIR $I686_FS_SRC
 }
 
 createCustomIso()
@@ -195,5 +201,77 @@ createCustomIso()
     generateNewIso
 }
 
-createCustomIso
+query()
+{
+    echo "Original iso: $ORIGINAL_ISO"
+    echo "New iso:      $NEW_ISO"
+    echo "Workspace:    $WORKSPACE"
+    echo "Custom src:   $CUSTOM_SRC"
+    echo "Custom dst:   $CUSTOM_DST"
+
+    read -p "Create new iso? [y/N]?" response
+    case $response in
+        [Yy]*)
+            time { createCustomIso ; }
+            ;;
+        *)
+            echo "Cancelled"
+            exit 0
+            ;;
+    esac
+}
+
+usage()
+{
+cat << EOF
+Creates ISO based on provided Arch Linux ISO, adding provided custom content.
+
+Usage: ${0##*/} [-h] [-o ORIG_ISO] [-n NEW_ISO] [-w WORKSPACE] [-s SRC] [-d DST]
+    -h display this help and exit
+    -o ORIG_ISO original ISO file ($ORIGINAL_ISO)
+    -n NEW_ISO ISO file to be created ($NEW_ISO)
+    -w WORKSPACE dir for temporary files ($WORKSPACE)
+    -s SRC source dir with ISO customization content ($CUSTOM_SRC)
+    -d DST dir where customization content will be available after booting ISO
+       ($CUSTOM_DST)
+EOF
+}
+
+#-------------------------------------------------------------------------------
+# Execution
+#-------------------------------------------------------------------------------
+
+while getopts ":ho:n:w:s:d:" opt; do
+    case $opt in
+        h)
+            usage
+            exit 0
+            ;;
+        o)
+            ORIGINAL_ISO="$OPTARG"
+            ;;
+        n)
+            NEW_ISO="$OPTARG"
+            ;;
+        w)
+            WORKSPACE="$OPTARG"
+            ;;
+        s)
+            CUSTOM_SRC="$OPTARG"
+            ;;
+        d)
+            CUSTOM_DST="$OPTARG"
+            ;;
+        \?)
+            echo "Invalid option: -$OPTARG"
+            exit 1
+            ;;
+        :)
+            echo "Option -$OPTARG requires an argument"
+            exit 2
+            ;;
+    esac
+done
+
+query
 
