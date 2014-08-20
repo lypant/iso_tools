@@ -54,112 +54,141 @@ I686_FS_SRC="$ISO_CONTENTS_DIR/arch/i686"
 
 checkPackages()
 {
+    echo "Check packages..."
+
     for pkg in $PACKAGES
     do
         pacman -Qsq $pkg &>/dev/null
         if [[ "$?" -ne 0 ]]; then
-            sudo pacman -S --noconfirm $pkg
+            eval "sudo pacman -S --noconfirm $pkg"
         fi
     done
+
+    echo "Check packages...done"
 }
 
-createOriginalIsoMountPoint()
+createIsoMountPoint()
 {
+    echo "Create ISO mount point..."
     eval "sudo mkdir -p $ISO_MNT_PNT"
+    echo "Create ISO mount point...done"
 }
 
-mountOriginalIso()
+mountIso()
 {
-    eval "sudo mount -t iso9660 -o loop"\
-         "$ORIGINAL_ISO $ISO_MNT_PNT"
+    echo "Mount ISO..."
+    eval "sudo mount -t iso9660 -o loop $ORIGINAL_ISO $ISO_MNT_PNT"
+    echo "Mount ISO...done"
 }
 
-unmountOriginalIso()
+unmountIso()
 {
+    echo "Unmount ISO..."
     eval "sudo umount $ISO_MNT_PNT"
+    echo "Unmount ISO...done"
 }
 
 createWorkspaceDir()
 {
+    echo "Create workspace directory..."
     eval "mkdir -p $WORKSPACE"
+    echo "Create workspace directory...done"
 }
 
-copyOriginalIsoContents()
+copyIsoContents()
 {
+    echo "Copy ISO contents..."
     eval "cp -a $ISO_MNT_PNT $ISO_CONTENTS_DIR"
+    echo "Copy ISO contents...done"
 }
 
-unsquashOriginalFs()
+unsquashFs()
 {
+    echo "Unsquash file system..."
+
     local newFsPath="$1"
     local originalFsPath="$2"
 
     eval "mkdir -p $newFsPath"
     eval "cd $newFsPath"
     eval "unsquashfs $originalFsPath/$SFS_NAME"
+
+    echo "Unsquash file system...done"
 }
 
-createFsImageMountPoint()
+createFsImgMountPoint()
 {
+    echo "Create file systen image mount point..."
     eval "sudo mkdir -p $FS_MNT_PNT"
+    echo "Create file systen image mount point...done"
 }
 
 mountFsImage()
 {
+    echo "Mount file system image..."
     local newFsPath="$1"
-    eval "sudo mount"\
-         "$newFsPath/$USQ_NAME/$IMG_NAME $FS_MNT_PNT"
+    eval "sudo mount $newFsPath/$USQ_NAME/$IMG_NAME $FS_MNT_PNT"
+    echo "Mount file system image...done"
 }
 
 unmountFsImage()
 {
+    echo "Unmount file sytem image..."
     eval "sudo umount $FS_MNT_PNT"
+    echo "Unmount file sytem image...done"
 }
 
-copyScripts()
+copyCustomContent()
 {
+    echo "Copy custom content..."
     eval "sudo cp $CUSTOM_SRC/* $FS_MNT_PNT$CUSTOM_DST"
+    echo "Copy custom content...done"
 }
 
 squashNewFs()
 {
+    echo "Squash new file system..."
     local newFsPath="$1"
-
-    eval "mksquashfs"\
-         "$newFsPath/$USQ_NAME $newFsPath/$SFS_NAME"
+    eval "mksquashfs $newFsPath/$USQ_NAME $newFsPath/$SFS_NAME"
+    echo "Squash new file system...done"
 }
 
 generateNewFsChecksum()
 {
+    echo "Generate new file system checksum..."
     local newFsPath="$1"
-
     eval "md5sum $newFsPath/$SFS_NAME > $newFsPath/$MD5_NAME"
+    echo "Generate new file system checksum...done"
 }
 
 removeOriginalFsFiles()
 {
+    echo "Remove original file sytem files..."
     local originalFsPath="$1"
-
     eval "rm $originalFsPath/$SFS_NAME"
     eval "rm $originalFsPath/$MD5_NAME"
+    echo "Remove original file sytem files...done"
 }
 
 copyNewFsFiles()
 {
+    echo "Copy new file system files..."
     local newFsPath="$1"
     local originalFsPath="$2"
-
     eval "cp $newFsPath/$SFS_NAME $originalFsPath/$SFS_NAME"
     eval "cp $newFsPath/$MD5_NAME $originalFsPath/$MD5_NAME"
+    echo "Copy new file system files...done"
 }
 
 generateNewIso()
 {
+    echo "Generate new ISO..."
     eval "cd $ISO_CONTENTS_DIR"
     eval "genisoimage -l -r -J -V \"$ISO_VERSION\""\
          "-b isolinux/isolinux.bin -no-emul-boot -boot-load-size 4"\
          "-boot-info-table -c isolinux/boot.cat"\
          "-o $NEW_ISO $ISO_CONTENTS_DIR"
+    echo "Generate new ISO...done"
 }
 
 prepareFileSystem()
@@ -167,10 +196,10 @@ prepareFileSystem()
     local newFsDir="$1"
     local originalFsDir="$2"
 
-    unsquashOriginalFs $newFsDir $originalFsDir
-    createFsImageMountPoint
+    unsquashFs $newFsDir $originalFsDir
+    createFsImgMountPoint
     mountFsImage $newFsDir
-    copyScripts
+    copyCustomContent
     unmountFsImage
     squashNewFs $newFsDir
     generateNewFsChecksum $newFsDir
@@ -180,25 +209,31 @@ prepareFileSystem()
 
 prepareFileSystemX86_64()
 {
+    echo "Prepare x86_64 file system..."
     prepareFileSystem $X86_64_FS_DIR $X86_64_FS_SRC
+    echo "Prepare x86_64 file system...done"
 }
 
 prepareFileSystemI686()
 {
+    echo "Prepare i686 file system..."
     prepareFileSystem $I686_FS_DIR $I686_FS_SRC
+    echo "Prepare i686 file system...done"
 }
 
 createCustomIso()
 {
+    echo "Create custom ISO..."
     checkPackages
-    createOriginalIsoMountPoint
-    mountOriginalIso
+    createIsoMountPoint
+    mountIso
     createWorkspaceDir
-    copyOriginalIsoContents
-    unmountOriginalIso
+    copyIsoContents
+    unmountIso
     prepareFileSystemX86_64
     prepareFileSystemI686
     generateNewIso
+    echo "Create custom ISO...done"
 }
 
 query()
@@ -272,6 +307,9 @@ while getopts ":ho:n:w:s:d:" opt; do
             ;;
     esac
 done
+
+# After getopts it is ok to set exit on error shell option
+set -o errexit
 
 query
 
